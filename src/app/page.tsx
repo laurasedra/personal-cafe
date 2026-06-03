@@ -49,8 +49,8 @@ export default function Home() {
 
   return (
     <main style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', color: '#fff' }}>
-        <span style={{display: 'inline-block', width: 28, height: 28}} aria-hidden>
+      <header style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+        <span style={{display: 'inline-block', width: 28, height: 28, color: '#fff'}} aria-hidden>
           <svg viewBox="0 0 32 32" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}>
             <g>
               <path d="M29.71 15.24h1.53v4.57h-1.53Z" fill="currentColor" strokeWidth="1"></path>
