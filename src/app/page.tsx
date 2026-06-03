@@ -92,6 +92,9 @@ export default function Home() {
           </svg>
         </span>
         <span>personal.cafe</span>
+        <div>
+          <a href="/login" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>Log in</a>
+        </div>
       </header>
       <p>What do you want to eat or drink?</p>
 
