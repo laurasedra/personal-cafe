@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { supabase } from '@/app/lib/supabase'
 
 export default function Home() {
   const [query, setQuery] = useState('')
@@ -9,6 +10,34 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openNow, setOpenNow] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [travelMode, setTravelMode] = useState('walking')
+  const [priceRange, setPriceRange] = useState('any')
+  const [dietaryPrefs, setDietaryPrefs] = useState<string[]>([])
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      setUserEmail(user.email ?? null)
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (data) {
+        console.log('Loaded preferences:', data)
+        setTravelMode(data.travel_mode || 'walking')
+        setPriceRange(data.price_range || 'any')
+        setDietaryPrefs(data.dietary_preferences || [])
+      }
+    }
+
+    loadUser()
+  }, [])
 
   useEffect(() => {
     if (openNow) {
@@ -18,6 +47,27 @@ export default function Home() {
     }
   }, [openNow])
 
+  const getRadius = () => {
+    if (travelMode === 'walking') return 3200
+    if (travelMode === 'transit') return 8000
+    return 16000
+  }
+
+  const filterByPrice = (places: any[]) => {
+    if (priceRange === 'any') return places
+    const map: Record<string, string> = {
+      '$': 'PRICE_LEVEL_INEXPENSIVE',
+      '$$': 'PRICE_LEVEL_MODERATE',
+      '$$$': 'PRICE_LEVEL_EXPENSIVE'
+    }
+    return places.filter((p: any) => p.priceLevel === map[priceRange])
+  }
+
+  const buildQuery = () => {
+    if (dietaryPrefs.length === 0) return query
+    return `${query} ${dietaryPrefs.join(' ')}`
+  }
+
   const search = async () => {
     setLoading(true)
     setError('')
@@ -25,17 +75,28 @@ export default function Home() {
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords
 
+      console.log('Searching with:', {
+        query: buildQuery(),
+        radius: getRadius(),
+        priceRange,
+        dietaryPrefs
+      })
+
       const res = await fetch(
-        `/api/places?query=${encodeURIComponent(query)}&lat=${latitude}&lng=${longitude}`
+        `/api/places?query=${encodeURIComponent(buildQuery())}&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`
       )
       const data = await res.json()
 
       if (data.places) {
-        setAllResults(data.places)
+        const priceFiltered = filterByPrice(data.places)
+        setAllResults(priceFiltered)
         const filtered = openNow
-          ? data.places.filter((p: any) => p.currentOpeningHours?.openNow)
-          : data.places
+          ? priceFiltered.filter((p: any) => p.currentOpeningHours?.openNow)
+          : priceFiltered
         setResults(filtered)
+        if (filtered.length === 0) {
+          setError('No results matched your preferences. Try adjusting your price range or filters.')
+        }
       } else {
         setError('No results found')
       }
@@ -50,8 +111,8 @@ export default function Home() {
   return (
     <main style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-        <span style={{display: 'inline-block', width: 28, height: 28, color: '#fff'}} aria-hidden>
-          <svg viewBox="0 0 32 32" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style={{display:'block'}}>
+        <span style={{ display: 'inline-block', width: 28, height: 28, color: '#fff' }} aria-hidden>
+          <svg viewBox="0 0 32 32" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
             <g>
               <path d="M29.71 15.24h1.53v4.57h-1.53Z" fill="currentColor" strokeWidth="1"></path>
               <path d="M28.19 19.81h1.52v1.52h-1.52Z" fill="currentColor" strokeWidth="1"></path>
@@ -91,11 +152,20 @@ export default function Home() {
             </g>
           </svg>
         </span>
-        <span>personal.cafe</span>
-        <div>
-          <a href="/login" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>Log in</a>
+        <span>Personal Cafe</span>
+        <div style={{ marginLeft: 'auto' }}>
+          {userEmail ? (
+            <a href="/profile" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>
+              ⚙️ {userEmail}
+            </a>
+          ) : (
+            <a href="/login" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>
+              Log in / Sign up
+            </a>
+          )}
         </div>
       </header>
+
       <p>What do you want to eat or drink?</p>
 
       <input

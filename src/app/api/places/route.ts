@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         locationBias: {
           circle: {
             center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
-            radius: 8000.0
+            radius: parseFloat(searchParams.get('radius') || '8000')
           }
         }
       })
