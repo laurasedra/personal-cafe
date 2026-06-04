@@ -56,6 +56,11 @@ export default function Profile() {
     alert('Preferences saved!')
   }
 
+  const logout = async () => {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   const toggleDietary = (pref: string) => {
     setDietaryPrefs(prev =>
       prev.includes(pref) ? prev.filter(p => p !== pref) : [...prev, pref]
@@ -118,13 +123,21 @@ export default function Profile() {
         ))}
       </section>
 
-      <button
-        onClick={save}
-        disabled={saving}
-        style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-      >
-        {saving ? 'Saving...' : 'Save Preferences'}
-      </button>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <button
+          onClick={save}
+          disabled={saving}
+          style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
+        >
+          {saving ? 'Saving...' : 'Save Preferences'}
+        </button>
+        <button
+          onClick={logout}
+          style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', background: '#fff', color: '#000', border: '1px solid #ddd', cursor: 'pointer' }}
+        >
+          Log out
+        </button>
+      </div>
     </main>
   )
 }
