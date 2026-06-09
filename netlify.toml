@@ -16,7 +16,7 @@
   publish  = ".next"         # Netlify copies everything in here
 
 [[plugins]]
-  package = "@netlify/nextjs"   # handles SSR, image optimisation, routing, etc.
+  package = "@netlify/plugin-nextjs"   # handles SSR, image optimisation, routing, etc.
 
 [build.environment]
   NODE_VERSION = "18"

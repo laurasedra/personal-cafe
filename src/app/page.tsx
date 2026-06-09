@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
-import { useRouter } from 'next/navigation'
 
 export default function Home() {
   const [query, setQuery] = useState('')
@@ -15,18 +14,11 @@ export default function Home() {
   const [travelMode, setTravelMode] = useState('walking')
   const [priceRange, setPriceRange] = useState('any')
   const [dietaryPrefs, setDietaryPrefs] = useState<string[]>([])
-  const [prefsLoaded, setPrefsLoaded] = useState(false)
-  const [readyToSearch, setReadyToSearch] = useState(false)
-  const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set())
-  const router = useRouter()
 
   useEffect(() => {
     const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setPrefsLoaded(true)
-        return
-      }
+      if (!user) return
 
       setUserEmail(user.email ?? null)
 
@@ -37,55 +29,15 @@ export default function Home() {
         .single()
 
       if (data) {
+        console.log('Loaded preferences:', data)
         setTravelMode(data.travel_mode || 'walking')
         setPriceRange(data.price_range || 'any')
         setDietaryPrefs(data.dietary_preferences || [])
-      }
-
-      // Load saved places
-      const { data: saved } = await supabase
-        .from('saved_places')
-        .select('place_id')
-        .eq('user_id', user.id)
-
-      if (saved) {
-        setSavedPlaceIds(new Set(saved.map((s: any) => s.place_id)))
-      }
-
-      setPrefsLoaded(true)
-
-      // Auto-save pending place after login
-      const pendingPlace = sessionStorage.getItem('pendingPlace')
-      if (pendingPlace) {
-        sessionStorage.removeItem('pendingPlace')
-        const place = JSON.parse(pendingPlace)
-        await supabase.from('saved_places').insert({
-          user_id: user.id,
-          place_id: place.id,
-          place_name: place.displayName?.text,
-          place_address: place.formattedAddress
-        })
-        setSavedPlaceIds(prev => new Set([...prev, place.id]))
-        alert(`${place.displayName?.text} saved!`)
-      }
-
-      const pendingQuery = sessionStorage.getItem('pendingQuery')
-      if (pendingQuery) {
-        sessionStorage.removeItem('pendingQuery')
-        setQuery(pendingQuery)
-        setReadyToSearch(true)
       }
     }
 
     loadUser()
   }, [])
-
-  useEffect(() => {
-    if (readyToSearch && prefsLoaded) {
-      search()
-      setReadyToSearch(false)
-    }
-  }, [readyToSearch, prefsLoaded])
 
   useEffect(() => {
     if (openNow) {
@@ -116,72 +68,19 @@ export default function Home() {
     return `${query} ${dietaryPrefs.join(' ')}`
   }
 
-  const toggleFavorite = async (place: any) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      sessionStorage.setItem('pendingQuery', query)
-      sessionStorage.setItem('pendingPlace', JSON.stringify(place))
-      router.push('/login')
-      return
-    }
-
-    if (savedPlaceIds.has(place.id)) {
-      await supabase
-        .from('saved_places')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('place_id', place.id)
-      setSavedPlaceIds(prev => {
-        const next = new Set(prev)
-        next.delete(place.id)
-        return next
-      })
-    } else {
-      await supabase.from('saved_places').insert({
-        user_id: user.id,
-        place_id: place.id,
-        place_name: place.displayName?.text,
-        place_address: place.formattedAddress
-      })
-      setSavedPlaceIds(prev => new Set([...prev, place.id]))
-    }
-  }
-
-  const pickForMe = async () => {
-  setLoading(true)
-  setError('')
-
-  navigator.geolocation.getCurrentPosition(async (position) => {
-    const { latitude, longitude } = position.coords
-
-    const res = await fetch(
-      `/api/places?query=cafe restaurant food&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`
-    )
-    const data = await res.json()
-
-    if (data.places && data.places.length > 0) {
-      const random = data.places[Math.floor(Math.random() * data.places.length)]
-      window.open(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`,
-        '_blank'
-      )
-    } else {
-      setError('No places found nearby.')
-    }
-
-    setLoading(false)
-  }, () => {
-    setError('Could not get your location.')
-    setLoading(false)
-  })
-}
-
   const search = async () => {
     setLoading(true)
     setError('')
 
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords
+
+      console.log('Searching with:', {
+        query: buildQuery(),
+        radius: getRadius(),
+        priceRange,
+        dietaryPrefs
+      })
 
       const res = await fetch(
         `/api/places?query=${encodeURIComponent(buildQuery())}&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`
@@ -207,7 +106,7 @@ export default function Home() {
       setError('Could not get your location. Please allow location access.')
       setLoading(false)
     })
-}
+  }
 
   return (
     <main style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
@@ -256,10 +155,9 @@ export default function Home() {
         <span>Personal Cafe</span>
         <div style={{ marginLeft: 'auto' }}>
           {userEmail ? (
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <a href="/profile" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>⚙️ {userEmail}</a>
-              <a href="/saved" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>❤️ Saved</a>
-            </div>
+            <a href="/profile" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>
+              ⚙️ {userEmail}
+            </a>
           ) : (
             <a href="/login" style={{ fontSize: '1rem', color: '#2563eb', textDecoration: 'none' }}>
               Log in / Sign up
@@ -280,7 +178,6 @@ export default function Home() {
       />
 
       <button
-        id="search-btn"
         onClick={search}
         disabled={loading || !query}
         style={{
@@ -295,22 +192,6 @@ export default function Home() {
       >
         {loading ? 'Searching...' : 'Find it'}
       </button>
-
-      <button
-      onClick={pickForMe}
-      style={{
-        marginLeft: '0.5rem',
-        padding: '0.75rem 1.5rem',
-        fontSize: '1rem',
-        borderRadius: '8px',
-        border: 'none',
-        background: '#0b5316',
-        color: '#fff',
-        cursor: 'pointer'
-      }}
-    >
-      Pick for me
-    </button>
 
       <label style={{ marginLeft: '1rem', fontSize: '1rem' }}>
         <input
@@ -334,12 +215,6 @@ export default function Home() {
               {place.rating && ` · ⭐ ${place.rating}`}
               {place.distance && ` · 📍 ${place.distance.toFixed(1)} mi`}
             </p>
-            <button
-              onClick={() => toggleFavorite(place)}
-              style={{ marginTop: '0.5rem', padding: '0.25rem 0.75rem', fontSize: '0.85rem', cursor: 'pointer' }}
-            >
-              {savedPlaceIds.has(place.id) ? '❤️ Saved' : '🤍 Save'}
-            </button>
           </li>
         ))}
       </ul>

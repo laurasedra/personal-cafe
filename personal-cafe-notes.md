@@ -4,7 +4,7 @@
 - **Frontend:** Next.js 16 (TypeScript, Tailwind)
 - **Auth + Database:** Supabase
 - **Places Data:** Google Places API (New)
-- **Hosting:** Vercel (auto-deploys on GitHub push)
+- **Hosting:** Netlify (auto-deploys on GitHub push)
 
 ---
 
@@ -12,7 +12,7 @@
 - Scaffolded with `npx create-next-app@latest personal-cafe --typescript --tailwind --eslint --app --src-dir`
 - Renamed `next.config.ts` → `next.config.js` due to Node.js v26 compatibility issue
 - Updated Next.js to latest with `npm install next@latest react@latest react-dom@latest`
-- Deployed to Vercel via CLI, then connected GitHub repo for auto-deploys
+- Deployed to Netlify for hosting with auto-deploys
 
 ---
 

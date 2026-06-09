@@ -58,7 +58,7 @@ export default function Profile() {
 
   const logout = async () => {
     await supabase.auth.signOut()
-    router.push('/')
+    router.push('/login')
   }
 
   const toggleDietary = (pref: string) => {
