@@ -268,7 +268,7 @@ export default function Home() {
         }}>
           <input
             type="text"
-            placeholder="iced latte, matcha, tacos..."
+            placeholder="iced latte, matcha, chai..."
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
