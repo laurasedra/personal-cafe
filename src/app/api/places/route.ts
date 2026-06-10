@@ -11,65 +11,90 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Missing Google Places API key on the server' },
+        { status: 500 }
+      )
+    }
+
+    const radius = parseFloat(searchParams.get('radius') || '8000')
+    const locationBias = {
+      circle: {
+        center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
+        radius
+      }
+    }
+
+    const requestBody = (text: string) => ({
+      textQuery: text,
+      maxResultCount: 20,
+      locationBias
+    })
+
+    const commonHeaders = {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.currentOpeningHours,places.priceLevel,places.rating,places.id'
+    }
+
     const [itemRes, cafeRes] = await Promise.all([
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY!,
-          'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.currentOpeningHours,places.priceLevel,places.rating,places.id'
-        },
-        body: JSON.stringify({
-          textQuery: query,
-          maxResultCount: 20,
-          locationBias: {
-            circle: {
-              center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
-              radius: 8000.0
-            }
-          }
-        })
+        headers: commonHeaders,
+        body: JSON.stringify(requestBody(query))
       }),
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY!,
-          'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.currentOpeningHours,places.priceLevel,places.rating,places.id'
-        },
-        body: JSON.stringify({
-          textQuery: `cafe coffee shop near me`,
-          maxResultCount: 20,
-          locationBias: {
-            circle: {
-              center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
-              radius: parseFloat(searchParams.get('radius') || '8000')
-            }
-          }
-        })
+        headers: commonHeaders,
+        body: JSON.stringify(requestBody('cafe coffee shop near me'))
       })
     ])
 
-    if (!itemRes.ok || !cafeRes.ok) {
-      const itemBody = await itemRes.text().catch(() => 'Unable to read response')
-      const cafeBody = await cafeRes.text().catch(() => 'Unable to read response')
+    const itemData = await itemRes.json().catch(() => null)
+    const cafeData = await cafeRes.json().catch(() => null)
 
+    const isPlacesStatusInvalid = (data: any) =>
+      data && data.status && !['OK', 'ZERO_RESULTS'].includes(data.status)
+
+    if (!itemRes.ok || !cafeRes.ok || isPlacesStatusInvalid(itemData) || isPlacesStatusInvalid(cafeData)) {
       return NextResponse.json(
         {
           error: 'Google Places API request failed',
           itemStatus: itemRes.status,
-          itemBody,
+          itemPlacesStatus: itemData?.status,
+          itemErrorMessage: itemData?.error_message,
+          itemData,
           cafeStatus: cafeRes.status,
-          cafeBody
+          cafePlacesStatus: cafeData?.status,
+          cafeErrorMessage: cafeData?.error_message,
+          cafeData
         },
         { status: 502 }
       )
     }
 
-    const itemData = await itemRes.json()
-    const cafeData = await cafeRes.json()
+    const itemResults = Array.isArray(itemData?.places) ? itemData.places : []
+    const cafeResults = Array.isArray(cafeData?.places) ? cafeData.places : []
 
-    const allPlaces = [...(itemData.places || []), ...(cafeData.places || [])]
+    const normalize = (place: any) => ({
+      displayName: place.displayName ?? { text: '' },
+      formattedAddress: place.formattedAddress ?? '',
+      location: {
+        latitude: place.location?.latitude,
+        longitude: place.location?.longitude
+      },
+      currentOpeningHours: {
+        openNow: place.currentOpeningHours?.openNow ?? false
+      },
+      priceLevel: place.priceLevel ?? null,
+      rating: place.rating ?? null,
+      id: place.id
+    })
+
+    const allPlaces = [...itemResults, ...cafeResults].map(normalize)
     const seen = new Set()
     const places = allPlaces.filter((place: any) => {
       if (seen.has(place.id)) return false
