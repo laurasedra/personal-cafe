@@ -127,7 +127,7 @@ export default function Home() {
     setError('')
     navigator.geolocation.getCurrentPosition(async (position) => {
       const { latitude, longitude } = position.coords
-      const res = await fetch(`/api/places?query=cafe restaurant food&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
+      const res = await fetch(`/api/places?query=cafe coffee shop bakery&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
       const data = await res.json()
       if (data.places && data.places.length > 0) {
         const random = data.places[Math.floor(Math.random() * data.places.length)]
