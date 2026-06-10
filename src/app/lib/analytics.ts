@@ -6,6 +6,8 @@ export function logEvent(eventType: string, payload: Record<string, any> = {}) {
       event_type: eventType,
       user_id: user?.id ?? null,
       payload,
+    }).then(({ error }) => {
+      if (error) console.error('[analytics]', eventType, error.message)
     })
   })
 }
