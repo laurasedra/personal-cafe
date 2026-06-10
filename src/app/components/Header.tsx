@@ -64,7 +64,7 @@ export default function Header() {
             </g>
           </svg>
         </span>
-        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fdf6f0', letterSpacing: '0.02em' }}>personal.cafe</span>
+        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fdf6f0', letterSpacing: '0.02em' }}>Personal Cafe</span>
       </a>
       <div>
         {userEmail ? (
