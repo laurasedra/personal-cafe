@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   description: "by Laura Sedra",
   icons: {
     icon: [
+      { url: "/favicon.png", type: "image/png" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ]
   },

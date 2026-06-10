@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Header from '@/app/components/Header'
 
 export default function Profile() {
   const [loading, setLoading] = useState(true)
@@ -19,22 +20,14 @@ export default function Profile() {
         router.push('/login')
         return
       }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
+      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (data) {
         setTravelMode(data.travel_mode || 'walking')
         setPriceRange(data.price_range || 'any')
         setDietaryPrefs(data.dietary_preferences || [])
       }
-
       setLoading(false)
     }
-
     loadProfile()
   }, [])
 
@@ -42,16 +35,11 @@ export default function Profile() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
-    await supabase
-      .from('profiles')
-      .update({
-        travel_mode: travelMode,
-        price_range: priceRange,
-        dietary_preferences: dietaryPrefs
-      })
-      .eq('id', user.id)
-
+    await supabase.from('profiles').update({
+      travel_mode: travelMode,
+      price_range: priceRange,
+      dietary_preferences: dietaryPrefs,
+    }).eq('id', user.id)
     setSaving(false)
     alert('Preferences saved!')
   }
@@ -67,76 +55,147 @@ export default function Profile() {
     )
   }
 
-  if (loading) return <p style={{ padding: '2rem' }}>Loading...</p>
+  const sectionStyle = {
+    background: '#fff',
+    borderRadius: '12px',
+    padding: '1.25rem',
+    boxShadow: '0 2px 8px rgba(44,26,14,0.08)',
+    border: '1px solid #f0e6d6',
+    marginBottom: '1rem',
+  }
+
+  const sectionHeadingStyle = {
+    margin: '0 0 1rem',
+    fontSize: '0.8rem',
+    fontWeight: 'bold' as const,
+    color: '#8a6a50',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em',
+  }
+
+  const pillBase = {
+    padding: '0.5rem 1rem',
+    borderRadius: '20px',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    fontFamily: 'Georgia, serif',
+    border: '1px solid #e8d8c4',
+    transition: 'all 0.15s',
+  }
+
+  const pillActive = { ...pillBase, background: '#d4a96a', color: '#2c1a0e', border: '1px solid #d4a96a', fontWeight: 'bold' as const }
+  const pillInactive = { ...pillBase, background: '#fdf6f0', color: '#5a3e2b' }
+
+  if (loading) {
+    return (
+      <main style={{ minHeight: '100vh', background: '#fdf6f0', fontFamily: "'Georgia', serif" }}>
+        <Header />
+        <p style={{ padding: '2rem', color: '#8a6a50', fontStyle: 'italic' }}>Loading...</p>
+      </main>
+    )
+  }
 
   return (
-    <main style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
-      <h1>My Preferences</h1>
-      <a href="/" style={{ fontSize: '0.9rem', color: '#2563eb', textDecoration: 'none' }}>← Back to search</a>
+    <main style={{ minHeight: '100vh', background: '#fdf6f0', fontFamily: "'Georgia', serif" }}>
+      <Header />
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h2>Travel Mode</h2>
-        {['walking', 'driving', 'transit'].map(mode => (
-          <label key={mode} style={{ display: 'block', marginBottom: '0.5rem' }}>
-            <input
-              type="radio"
-              name="travelMode"
-              value={mode}
-              checked={travelMode === mode}
-              onChange={() => setTravelMode(mode)}
-              style={{ marginRight: '0.5rem' }}
-            />
-            {mode.charAt(0).toUpperCase() + mode.slice(1)}
-          </label>
-        ))}
-      </section>
+      <div style={{ maxWidth: '560px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <a href="/" style={{ fontSize: '0.85rem', color: '#d4a96a', textDecoration: 'none' }}>← Back to search</a>
+          <h1 style={{ margin: '0.5rem 0 0', fontSize: '1.4rem', color: '#2c1a0e' }}>My Preferences</h1>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', color: '#8a6a50', fontStyle: 'italic' }}>
+            These are applied automatically to every search
+          </p>
+        </div>
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h2>Price Range</h2>
-        {['any', '$', '$$', '$$$'].map(price => (
-          <label key={price} style={{ display: 'block', marginBottom: '0.5rem' }}>
-            <input
-              type="radio"
-              name="priceRange"
-              value={price}
-              checked={priceRange === price}
-              onChange={() => setPriceRange(price)}
-              style={{ marginRight: '0.5rem' }}
-            />
-            {price === 'any' ? 'Any price' : price}
-          </label>
-        ))}
-      </section>
+        <div style={sectionStyle}>
+          <p style={sectionHeadingStyle}>Travel Mode</p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' as const }}>
+            {[
+              { value: 'walking', label: '🚶 Walking' },
+              { value: 'transit', label: '🚌 Transit' },
+              { value: 'driving', label: '🚗 Driving' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setTravelMode(value)}
+                style={travelMode === value ? pillActive : pillInactive}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <section style={{ marginBottom: '2rem' }}>
-        <h2>Dietary Preferences</h2>
-        {['vegan', 'vegetarian', 'gluten-free', 'halal', 'kosher'].map(pref => (
-          <label key={pref} style={{ display: 'block', marginBottom: '0.5rem' }}>
-            <input
-              type="checkbox"
-              checked={dietaryPrefs.includes(pref)}
-              onChange={() => toggleDietary(pref)}
-              style={{ marginRight: '0.5rem' }}
-            />
-            {pref.charAt(0).toUpperCase() + pref.slice(1)}
-          </label>
-        ))}
-      </section>
+        <div style={sectionStyle}>
+          <p style={sectionHeadingStyle}>Price Range</p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' as const }}>
+            {[
+              { value: 'any', label: 'Any' },
+              { value: '$', label: '$' },
+              { value: '$$', label: '$$' },
+              { value: '$$$', label: '$$$' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setPriceRange(value)}
+                style={priceRange === value ? pillActive : pillInactive}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={save}
-          disabled={saving}
-          style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-        >
-          {saving ? 'Saving...' : 'Save Preferences'}
-        </button>
-        <button
-          onClick={logout}
-          style={{ padding: '0.75rem 1.5rem', fontSize: '1rem', background: '#fff', color: '#000', border: '1px solid #ddd', cursor: 'pointer' }}
-        >
-          Log out
-        </button>
+        <div style={sectionStyle}>
+          <p style={sectionHeadingStyle}>Dietary Preferences</p>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' as const }}>
+            {['vegan', 'vegetarian', 'gluten-free', 'halal', 'kosher'].map(pref => (
+              <button
+                key={pref}
+                onClick={() => toggleDietary(pref)}
+                style={dietaryPrefs.includes(pref) ? pillActive : pillInactive}
+              >
+                {pref.charAt(0).toUpperCase() + pref.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' as const, marginTop: '0.5rem' }}>
+          <button
+            onClick={save}
+            disabled={saving}
+            style={{
+              padding: '0.85rem 1.5rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: 'none',
+              background: '#d4a96a',
+              color: '#2c1a0e',
+              fontWeight: 'bold',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontFamily: 'Georgia, serif',
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Preferences'}
+          </button>
+          <button
+            onClick={logout}
+            style={{
+              padding: '0.85rem 1.5rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: '1px solid #d4a96a',
+              background: 'transparent',
+              color: '#d4a96a',
+              cursor: 'pointer',
+              fontFamily: 'Georgia, serif',
+            }}
+          >
+            Log out
+          </button>
+        </div>
       </div>
     </main>
   )

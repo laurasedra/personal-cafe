@@ -176,7 +176,7 @@ export default function Home() {
       <header style={{
         background: '#2c1a0e',
         color: '#fdf6f0',
-        padding: '1rem 2rem',
+        padding: '0.75rem 1rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -224,16 +224,16 @@ export default function Home() {
               </g>
             </svg>
           </span>
-          <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#fdf6f0', letterSpacing: '0.02em' }}>Personal Cafe</span>
+          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fdf6f0', letterSpacing: '0.02em' }}>personal.cafe</span>
         </div>
         <div>
           {userEmail ? (
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-              <a href="/saved" style={{ fontSize: '0.9rem', color: '#d4a96a', textDecoration: 'none' }}>❤️ Saved</a>
-              <a href="/profile" style={{ fontSize: '0.9rem', color: '#d4a96a', textDecoration: 'none' }}>⚙️ {userEmail}</a>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <a href="/saved" style={{ fontSize: '0.85rem', color: '#d4a96a', textDecoration: 'none' }}>❤️</a>
+              <a href="/profile" style={{ fontSize: '0.85rem', color: '#d4a96a', textDecoration: 'none' }}>⚙️</a>
             </div>
           ) : (
-            <a href="/login" style={{ fontSize: '0.9rem', color: '#d4a96a', textDecoration: 'none' }}>Log in / Sign up</a>
+            <a href="/login" style={{ fontSize: '0.85rem', color: '#d4a96a', textDecoration: 'none' }}>Log in</a>
           )}
         </div>
       </header>
@@ -241,14 +241,20 @@ export default function Home() {
       {/* Hero */}
       <div style={{
         background: '#3d2314',
-        padding: '2.5rem 2rem',
+        padding: '2rem 1rem',
         textAlign: 'center',
         color: '#fdf6f0',
       }}>
-        <p style={{ fontSize: '1.1rem', color: '#c9a97a', marginBottom: '1.5rem', fontStyle: 'italic' }}>
+        <p style={{ fontSize: '1rem', color: '#c9a97a', marginBottom: '1.25rem', fontStyle: 'italic' }}>
           find something good nearby
         </p>
-        <div style={{ display: 'flex', gap: '0.5rem', maxWidth: '560px', margin: '0 auto' }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          maxWidth: '560px',
+          margin: '0 auto',
+        }}>
           <input
             type="text"
             placeholder="iced latte, matcha, tacos..."
@@ -256,7 +262,7 @@ export default function Home() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
             style={{
-              flex: 1,
+              width: '100%',
               padding: '0.85rem 1rem',
               fontSize: '1rem',
               borderRadius: '8px',
@@ -265,6 +271,7 @@ export default function Home() {
               background: '#fdf6f0',
               color: '#2c1a0e',
               fontFamily: 'Georgia, serif',
+              boxSizing: 'border-box' as const,
             }}
           />
           <button
@@ -272,6 +279,7 @@ export default function Home() {
             onClick={search}
             disabled={loading || !query}
             style={{
+              width: '100%',
               padding: '0.85rem 1.25rem',
               fontSize: '1rem',
               borderRadius: '8px',
@@ -283,7 +291,7 @@ export default function Home() {
               fontFamily: 'Georgia, serif',
             }}
           >
-            {loading ? '...' : 'Find it'}
+            {loading ? 'Searching...' : 'Find it'}
           </button>
         </div>
 
@@ -315,7 +323,7 @@ export default function Home() {
       </div>
 
       {/* Results */}
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '1.5rem 2rem' }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '1.25rem 1rem' }}>
         {error && (
           <p style={{ color: '#9b3a2a', background: '#fde8e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.9rem' }}>
             {error}
@@ -327,27 +335,27 @@ export default function Home() {
             <li key={place.id} style={{
               background: '#fff',
               borderRadius: '12px',
-              padding: '1.1rem 1.25rem',
+              padding: '1rem',
               boxShadow: '0 2px 8px rgba(44,26,14,0.08)',
               border: '1px solid #f0e6d6',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <strong style={{ fontSize: '1rem', color: '#2c1a0e' }}>{place.displayName?.text}</strong>
+                <strong style={{ fontSize: '1rem', color: '#2c1a0e', flex: 1, paddingRight: '0.5rem' }}>{place.displayName?.text}</strong>
                 <button
                   onClick={() => toggleFavorite(place)}
                   style={{
                     background: 'none',
                     border: 'none',
-                    fontSize: '1.1rem',
+                    fontSize: '1.2rem',
                     cursor: 'pointer',
-                    padding: '0',
-                    marginLeft: '0.5rem',
+                    padding: '0.25rem',
+                    flexShrink: 0,
                   }}
                 >
                   {savedPlaceIds.has(place.id) ? '❤️' : '🤍'}
                 </button>
               </div>
-              <p style={{ margin: '0.3rem 0 0', color: '#8a6a50', fontSize: '0.875rem' }}>{place.formattedAddress}</p>
+              <p style={{ margin: '0.3rem 0 0', color: '#8a6a50', fontSize: '0.85rem' }}>{place.formattedAddress}</p>
               <p style={{ margin: '0.4rem 0 0', fontSize: '0.85rem', color: '#5a3e2b', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <span>{place.currentOpeningHours?.openNow ? '🟢 Open' : '🔴 Closed'}</span>
                 {place.rating && <span>⭐ {place.rating}</span>}
