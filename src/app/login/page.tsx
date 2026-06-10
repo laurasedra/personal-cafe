@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Header from '@/app/components/Header'
+import { logEvent } from '@/app/lib/analytics'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -14,6 +15,7 @@ export default function Login() {
 
   const handleAuth = async () => {
     setError('')
+    logEvent('auth_submit', { type: isSignUp ? 'signup' : 'login' })
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)

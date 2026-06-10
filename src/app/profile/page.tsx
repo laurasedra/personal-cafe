@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Header from '@/app/components/Header'
+import { logEvent } from '@/app/lib/analytics'
 
 export default function Profile() {
   const [loading, setLoading] = useState(true)
@@ -40,6 +41,7 @@ export default function Profile() {
       price_range: priceRange,
       dietary_preferences: dietaryPrefs,
     }).eq('id', user.id)
+    logEvent('save_preferences', { travel_mode: travelMode, price_range: priceRange, dietary_prefs: dietaryPrefs })
     setSaving(false)
     alert('Preferences saved!')
   }

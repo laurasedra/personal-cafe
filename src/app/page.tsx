@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { logEvent } from '@/app/lib/analytics'
 
 export default function Home() {
   const [query, setQuery] = useState('')
@@ -139,6 +140,7 @@ export default function Home() {
           return
         }
         const random = candidates[Math.floor(Math.random() * candidates.length)]
+        logEvent('pick_for_me', { place_id: random.id, place_name: random.displayName?.text, open_now: openNow })
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`, '_blank')
       } else {
         setError('No places found nearby.')
@@ -162,6 +164,7 @@ export default function Home() {
         setAllResults(priceFiltered)
         const filtered = openNow ? priceFiltered.filter((p: any) => p.currentOpeningHours?.openNow) : priceFiltered
         setResults(filtered)
+        logEvent('search', { query, result_count: filtered.length, open_now: openNow, travel_mode: travelMode, price_range: priceRange })
         if (filtered.length === 0) setError('No results matched your preferences. Try adjusting your price range or filters.')
       } else {
         setError('No results found')
