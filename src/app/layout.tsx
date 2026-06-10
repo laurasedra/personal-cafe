@@ -16,7 +16,9 @@ export const metadata: Metadata = {
   title: "Personal Cafe",
   description: "by Laura Sedra",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ]
   },
 }
 
