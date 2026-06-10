@@ -130,7 +130,15 @@ export default function Home() {
       const res = await fetch(`/api/places?query=cafe coffee shop bakery&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
       const data = await res.json()
       if (data.places && data.places.length > 0) {
-        const random = data.places[Math.floor(Math.random() * data.places.length)]
+        const candidates = openNow
+          ? data.places.filter((p: any) => p.currentOpeningHours?.openNow)
+          : data.places
+        if (candidates.length === 0) {
+          setError('No open places found nearby.')
+          setLoading(false)
+          return
+        }
+        const random = candidates[Math.floor(Math.random() * candidates.length)]
         window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`, '_blank')
       } else {
         setError('No places found nearby.')
