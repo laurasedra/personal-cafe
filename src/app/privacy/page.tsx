@@ -119,9 +119,7 @@ export default function PrivacyPolicy() {
           <section style={sectionStyle}>
             <h2 style={headingStyle}>Contact</h2>
             <p style={paragraphStyle}>
-              For privacy questions, contact Personal Cafe at privacy@personal-cafe.example.
-              This contact address should be replaced with the site owner&apos;s preferred email
-              before final affiliate submission.
+              For privacy questions, contact Laura Sedra at laurasedra9@gmail.com.
             </p>
           </section>
         </div>
