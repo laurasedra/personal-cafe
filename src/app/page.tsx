@@ -5,6 +5,25 @@ import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { logEvent } from '@/app/lib/analytics'
 
+const weekdayDescriptionIndex = [6, 0, 1, 2, 3, 4, 5]
+
+type PlaceWithHours = {
+  currentOpeningHours?: {
+    weekdayDescriptions?: unknown
+  }
+}
+
+function getTodayHours(place: PlaceWithHours) {
+  const descriptions = place.currentOpeningHours?.weekdayDescriptions
+  if (!Array.isArray(descriptions) || descriptions.length === 0) return null
+
+  const today = descriptions[weekdayDescriptionIndex[new Date().getDay()]]
+  if (typeof today !== 'string') return null
+
+  const [, hours] = today.split(/:\s(.+)/)
+  return hours || today
+}
+
 export default function Home() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<any[]>([])
@@ -342,38 +361,47 @@ export default function Home() {
         )}
 
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {results.map((place) => (
-            <li key={place.id} style={{
-              background: '#fff',
-              borderRadius: '12px',
-              padding: '1rem',
-              boxShadow: '0 2px 8px rgba(44,26,14,0.08)',
-              border: '1px solid #f0e6d6',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <strong style={{ fontSize: '1rem', color: '#2c1a0e', flex: 1, paddingRight: '0.5rem' }}>{place.displayName?.text}</strong>
-                <button
-                  onClick={() => toggleFavorite(place)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '1.2rem',
-                    cursor: 'pointer',
-                    padding: '0.25rem',
-                    flexShrink: 0,
-                  }}
-                >
-                  {savedPlaceIds.has(place.id) ? '❤️' : '🤍'}
-                </button>
-              </div>
-              <p style={{ margin: '0.3rem 0 0', color: '#8a6a50', fontSize: '0.85rem' }}>{place.formattedAddress}</p>
-              <p style={{ margin: '0.4rem 0 0', fontSize: '0.85rem', color: '#5a3e2b', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span>{place.currentOpeningHours?.openNow ? '🟢 Open' : '🔴 Closed'}</span>
-                {place.rating && <span>⭐ {place.rating}</span>}
-                {place.distance && <span>📍 {place.distance.toFixed(1)} mi</span>}
-              </p>
-            </li>
-          ))}
+          {results.map((place) => {
+            const todayHours = getTodayHours(place)
+
+            return (
+              <li key={place.id} style={{
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '1rem',
+                boxShadow: '0 2px 8px rgba(44,26,14,0.08)',
+                border: '1px solid #f0e6d6',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <strong style={{ fontSize: '1rem', color: '#2c1a0e', flex: 1, paddingRight: '0.5rem' }}>{place.displayName?.text}</strong>
+                  <button
+                    onClick={() => toggleFavorite(place)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.2rem',
+                      cursor: 'pointer',
+                      padding: '0.25rem',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {savedPlaceIds.has(place.id) ? '❤️' : '🤍'}
+                  </button>
+                </div>
+                <p style={{ margin: '0.3rem 0 0', color: '#8a6a50', fontSize: '0.85rem' }}>{place.formattedAddress}</p>
+                <p style={{ margin: '0.4rem 0 0', fontSize: '0.85rem', color: '#5a3e2b', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span>{place.currentOpeningHours?.openNow ? '🟢 Open' : '🔴 Closed'}</span>
+                  {place.rating && <span>⭐ {place.rating}</span>}
+                  {place.distance && <span>📍 {place.distance.toFixed(1)} mi</span>}
+                </p>
+                {todayHours && (
+                  <p style={{ margin: '0.35rem 0 0', color: '#6f4d35', fontSize: '0.82rem' }}>
+                    Today: {todayHours}
+                  </p>
+                )}
+              </li>
+            )
+          })}
         </ul>
       </div>
     </main>
