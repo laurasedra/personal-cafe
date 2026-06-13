@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Header from '@/app/components/Header'
+import Footer from '@/app/components/Footer'
 
 export default function Saved() {
   const [saved, setSaved] = useState<any[]>([])
@@ -104,6 +105,7 @@ export default function Saved() {
           </ul>
         )}
       </div>
+      <Footer />
     </main>
   )
 }

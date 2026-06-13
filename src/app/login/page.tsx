@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Header from '@/app/components/Header'
+import Footer from '@/app/components/Footer'
 import { logEvent } from '@/app/lib/analytics'
 
 export default function Login() {
@@ -122,6 +123,7 @@ export default function Login() {
           </div>
         </div>
       </div>
+      <Footer />
     </main>
   )
 }

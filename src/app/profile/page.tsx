@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Header from '@/app/components/Header'
+import Footer from '@/app/components/Footer'
 import { logEvent } from '@/app/lib/analytics'
 
 export default function Profile() {
@@ -199,6 +200,7 @@ export default function Profile() {
           </button>
         </div>
       </div>
+      <Footer />
     </main>
   )
 }
