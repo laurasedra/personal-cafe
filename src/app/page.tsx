@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { logEvent } from '@/app/lib/analytics'
+import Footer from '@/app/components/Footer'
 
 const weekdayDescriptionIndex = [6, 0, 1, 2, 3, 4, 5]
 
@@ -404,6 +405,7 @@ export default function Home() {
           })}
         </ul>
       </div>
+      <Footer />
     </main>
   )
 }
