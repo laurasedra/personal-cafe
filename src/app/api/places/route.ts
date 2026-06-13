@@ -87,7 +87,9 @@ export async function GET(request: NextRequest) {
         longitude: place.location?.longitude
       },
       currentOpeningHours: {
-        openNow: place.currentOpeningHours?.openNow ?? false
+        openNow: place.currentOpeningHours?.openNow ?? false,
+        periods: place.currentOpeningHours?.periods ?? [],
+        weekdayDescriptions: place.currentOpeningHours?.weekdayDescriptions ?? []
       },
       priceLevel: place.priceLevel ?? null,
       rating: place.rating ?? null,
