@@ -21,6 +21,11 @@ export const metadata: Metadata = {
       { url: "/favicon.svg", type: "image/svg+xml" },
     ]
   },
+  verification: {
+    other: {
+      'fo-verify': '3b741765-a324-4c08-b43a-b9b755a85dd5',
+    }
+  }
 }
 
 export default function RootLayout({
