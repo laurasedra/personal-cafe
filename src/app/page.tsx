@@ -5,49 +5,7 @@ import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { logEvent } from '@/app/lib/analytics'
 import Footer from '@/app/components/Footer'
-
-const weekdayDescriptionIndex = [6, 0, 1, 2, 3, 4, 5]
-
-type PlaceWithHours = {
-  currentOpeningHours?: {
-    weekdayDescriptions?: unknown
-  }
-}
-
-type PlaceWithMap = {
-  displayName?: {
-    text?: string
-  }
-  formattedAddress?: string
-  location?: {
-    latitude?: number
-    longitude?: number
-  }
-}
-
-function getTodayHours(place: PlaceWithHours) {
-  const descriptions = place.currentOpeningHours?.weekdayDescriptions
-  if (!Array.isArray(descriptions) || descriptions.length === 0) return null
-
-  const today = descriptions[weekdayDescriptionIndex[new Date().getDay()]]
-  if (typeof today !== 'string') return null
-
-  const [, hours] = today.split(/:\s(.+)/)
-  return hours || today
-}
-
-function getMapEmbedUrl(place: PlaceWithMap) {
-  const latitude = place.location?.latitude
-  const longitude = place.location?.longitude
-  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
-  const query = hasCoordinates
-    ? `${latitude},${longitude}`
-    : [place.displayName?.text, place.formattedAddress].filter(Boolean).join(' ')
-
-  if (!query) return null
-
-  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`
-}
+import { getMapEmbedUrl, getTodayHours, type PersonalCafePlace } from '@/app/lib/places'
 
 export default function Home() {
   const [query, setQuery] = useState('')
@@ -64,6 +22,7 @@ export default function Home() {
   const [readyToSearch, setReadyToSearch] = useState(false)
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set())
   const [revealedMapIds, setRevealedMapIds] = useState<Set<string>>(new Set())
+  const [sharedPlaceIds, setSharedPlaceIds] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
@@ -178,6 +137,48 @@ export default function Home() {
       })
       setSavedPlaceIds(prev => new Set([...prev, place.id]))
     }
+  }
+
+  const sharePlace = async (place: PersonalCafePlace) => {
+    if (!place?.id) return
+
+    const placeId = place.id
+    const shareUrl = `${window.location.origin}/place/${encodeURIComponent(placeId)}`
+    const placeName = place.displayName?.text || 'this place'
+    let method = 'native'
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${placeName} on Personal Cafe`,
+          text: `Check out ${placeName} on Personal Cafe.`,
+          url: shareUrl
+        })
+      } else {
+        method = 'clipboard'
+        await navigator.clipboard.writeText(shareUrl)
+      }
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+
+      method = 'clipboard'
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+      } catch {
+        setError('Could not share this place. Try again in a moment.')
+        return
+      }
+    }
+
+    logEvent('share_place', { place_id: placeId, place_name: placeName, method })
+    setSharedPlaceIds(prev => new Set([...prev, placeId]))
+    window.setTimeout(() => {
+      setSharedPlaceIds(prev => {
+        const next = new Set(prev)
+        next.delete(placeId)
+        return next
+      })
+    }, 2500)
   }
 
   const pickForMe = async () => {
@@ -434,6 +435,22 @@ export default function Home() {
                   <span>{place.currentOpeningHours?.openNow ? '🟢 Open' : '🔴 Closed'}</span>
                   {place.rating && <span>⭐ {place.rating}</span>}
                   {place.distance && <span>📍 {place.distance.toFixed(1)} mi</span>}
+                  <button
+                    type="button"
+                    onClick={() => sharePlace(place)}
+                    style={{
+                      border: '1px solid #d4a96a',
+                      borderRadius: '8px',
+                      background: sharedPlaceIds.has(place.id) ? '#f7ead6' : 'transparent',
+                      color: '#5a3e2b',
+                      cursor: 'pointer',
+                      fontFamily: 'Georgia, serif',
+                      fontSize: '0.78rem',
+                      padding: '0.12rem 0.45rem',
+                    }}
+                  >
+                    {sharedPlaceIds.has(place.id) ? 'Link Copied' : 'Share'}
+                  </button>
                   {mapEmbedUrl && (
                     <button
                       type="button"
