@@ -191,6 +191,7 @@ export default function Home() {
         const data = await res.json()
         setError(data.error || 'No results found')
         setResults([])
+        setAllResults([])
         setLoading(false)
         return
       }
