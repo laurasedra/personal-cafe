@@ -10,33 +10,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
   }
 
-const classifyRes = await fetch('https://api.anthropic.com/v1/messages', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': process.env.ANTHROPIC_API_KEY!,
-    'anthropic-version': '2023-06-01'
-  },
-  body: JSON.stringify({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 10,
-    messages: [{
-      role: 'user',
-      content: `Is this a food or drink related search query? Reply only "yes" or "no". Query: "${query}"`
-    }]
-  })
-})
-
-const classifyData = await classifyRes.json()
-const answer = classifyData.content?.[0]?.text?.trim().toLowerCase()
-
-if (answer !== 'yes') {
-  return NextResponse.json(
-    { error: 'Try searching for a food or drink — like "matcha" or "bagel".' },
-    { status: 400 }
-  )
-}
-
   try {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
 
