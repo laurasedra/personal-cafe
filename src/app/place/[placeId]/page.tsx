@@ -7,6 +7,19 @@ import OpenSharedPlaceLogger from './OpenSharedPlaceLogger'
 
 export const dynamic = 'force-dynamic'
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ placeId: string }>
+}) {
+  const { placeId } = await params
+  const place = await fetchPlaceDetails(placeId)
+  const placeName = place.displayName?.text || 'A great spot'
+  return {
+    title: `${placeName} – Personal Cafe`,
+  }
+}
+
 export default async function SharedPlacePage({
   params,
 }: {
@@ -45,6 +58,9 @@ export default async function SharedPlacePage({
               {place.formattedAddress}
             </p>
           )}
+          <p style={{ margin: '0.5rem 0 0', color: '#a07850', fontSize: '0.85rem', fontStyle: 'italic' }}>
+            Shared via Personal Cafe — find great spots near you
+          </p>
         </div>
       </section>
 
