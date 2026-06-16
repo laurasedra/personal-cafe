@@ -24,6 +24,7 @@ export const metadata: Metadata = {
   verification: {
     other: {
       'fo-verify': '3b741765-a324-4c08-b43a-b9b755a85dd5',
+      'Impact-Site-Verification': '9cae0fc2-8a15-4006-9ce6-ab3a5c2e7dbc',
     }
   }
 }
