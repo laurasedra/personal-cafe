@@ -226,7 +226,7 @@ export default function Home() {
         logEvent('search', { query, result_count: filtered.length, open_now: openNow, travel_mode: travelMode, price_range: priceRange })
         if (filtered.length === 0) setError('No results matched your preferences. Try adjusting your price range or filters.')
       } else {
-        setError('No results found')
+        setError(data.error || 'No results found')
       }
       setLoading(false)
     }, () => {
