@@ -14,6 +14,17 @@ type PlaceWithHours = {
   }
 }
 
+type PlaceWithMap = {
+  displayName?: {
+    text?: string
+  }
+  formattedAddress?: string
+  location?: {
+    latitude?: number
+    longitude?: number
+  }
+}
+
 function getTodayHours(place: PlaceWithHours) {
   const descriptions = place.currentOpeningHours?.weekdayDescriptions
   if (!Array.isArray(descriptions) || descriptions.length === 0) return null
@@ -23,6 +34,19 @@ function getTodayHours(place: PlaceWithHours) {
 
   const [, hours] = today.split(/:\s(.+)/)
   return hours || today
+}
+
+function getMapEmbedUrl(place: PlaceWithMap) {
+  const latitude = place.location?.latitude
+  const longitude = place.location?.longitude
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
+  const query = hasCoordinates
+    ? `${latitude},${longitude}`
+    : [place.displayName?.text, place.formattedAddress].filter(Boolean).join(' ')
+
+  if (!query) return null
+
+  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`
 }
 
 export default function Home() {
@@ -39,6 +63,7 @@ export default function Home() {
   const [prefsLoaded, setPrefsLoaded] = useState(false)
   const [readyToSearch, setReadyToSearch] = useState(false)
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set())
+  const [revealedMapIds, setRevealedMapIds] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
@@ -117,6 +142,18 @@ export default function Home() {
     return `${query} ${dietaryPrefs.join(' ')}`
   }
 
+  const toggleMap = (placeId: string) => {
+    setRevealedMapIds(prev => {
+      const next = new Set(prev)
+      if (next.has(placeId)) {
+        next.delete(placeId)
+      } else {
+        next.add(placeId)
+      }
+      return next
+    })
+  }
+
   const toggleFavorite = async (place: any) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -181,6 +218,7 @@ export default function Home() {
       const data = await res.json()
       if (data.places) {
         const priceFiltered = filterByPrice(data.places)
+        setRevealedMapIds(new Set())
         setAllResults(priceFiltered)
         const filtered = openNow ? priceFiltered.filter((p: any) => p.currentOpeningHours?.openNow) : priceFiltered
         setResults(filtered)
@@ -364,6 +402,8 @@ export default function Home() {
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {results.map((place) => {
             const todayHours = getTodayHours(place)
+            const mapEmbedUrl = getMapEmbedUrl(place)
+            const isMapRevealed = revealedMapIds.has(place.id)
 
             return (
               <li key={place.id} style={{
@@ -394,11 +434,52 @@ export default function Home() {
                   <span>{place.currentOpeningHours?.openNow ? '🟢 Open' : '🔴 Closed'}</span>
                   {place.rating && <span>⭐ {place.rating}</span>}
                   {place.distance && <span>📍 {place.distance.toFixed(1)} mi</span>}
+                  {mapEmbedUrl && (
+                    <button
+                      type="button"
+                      onClick={() => toggleMap(place.id)}
+                      aria-expanded={isMapRevealed}
+                      style={{
+                        border: '1px solid #d4a96a',
+                        borderRadius: '8px',
+                        background: isMapRevealed ? '#f7ead6' : 'transparent',
+                        color: '#5a3e2b',
+                        cursor: 'pointer',
+                        fontFamily: 'Georgia, serif',
+                        fontSize: '0.78rem',
+                        padding: '0.12rem 0.45rem',
+                      }}
+                    >
+                      {isMapRevealed ? 'Hide Map' : 'Reveal on Map'}
+                    </button>
+                  )}
                 </p>
                 {todayHours && (
                   <p style={{ margin: '0.35rem 0 0', color: '#6f4d35', fontSize: '0.82rem' }}>
                     Today: {todayHours}
                   </p>
+                )}
+                {mapEmbedUrl && isMapRevealed && (
+                  <div style={{
+                    marginTop: '0.75rem',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid #f0e6d6',
+                    background: '#f7ead6',
+                  }}>
+                    <iframe
+                      title={`Map for ${place.displayName?.text || 'selected place'}`}
+                      src={mapEmbedUrl}
+                      width="100%"
+                      height="220"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      style={{
+                        border: 0,
+                        display: 'block',
+                      }}
+                    />
+                  </div>
                 )}
               </li>
             )
