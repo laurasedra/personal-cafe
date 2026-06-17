@@ -12,6 +12,10 @@ export default function Footer() {
       <Link href="/privacy" style={{ color: '#8a6a50', textDecoration: 'underline' }}>
         Privacy Policy
       </Link>
+      <span style={{ margin: '0 0.5rem' }}>·</span>
+      <Link href="/feedback" style={{ color: '#8a6a50', textDecoration: 'underline' }}>
+        Share Feedback
+      </Link>
     </footer>
   )
 }
