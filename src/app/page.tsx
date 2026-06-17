@@ -7,10 +7,20 @@ import { logEvent } from '@/app/lib/analytics'
 import Footer from '@/app/components/Footer'
 import { getMapEmbedUrl, getTodayHours, type PersonalCafePlace } from '@/app/lib/places'
 
+type CurrentLocation = {
+  latitude: number
+  longitude: number
+}
+
+type SavedPlaceRow = {
+  place_id: string
+}
+
 export default function Home() {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
-  const [allResults, setAllResults] = useState<any[]>([])
+  const [manualLocation, setManualLocation] = useState('')
+  const [currentLocation, setCurrentLocation] = useState<CurrentLocation | null>(null)
+  const [allResults, setAllResults] = useState<PersonalCafePlace[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openNow, setOpenNow] = useState(false)
@@ -18,8 +28,6 @@ export default function Home() {
   const [travelMode, setTravelMode] = useState('walking')
   const [priceRange, setPriceRange] = useState('any')
   const [dietaryPrefs, setDietaryPrefs] = useState<string[]>([])
-  const [prefsLoaded, setPrefsLoaded] = useState(false)
-  const [readyToSearch, setReadyToSearch] = useState(false)
   const [savedPlaceIds, setSavedPlaceIds] = useState<Set<string>>(new Set())
   const [revealedMapIds, setRevealedMapIds] = useState<Set<string>>(new Set())
   const [sharedPlaceIds, setSharedPlaceIds] = useState<Set<string>>(new Set())
@@ -29,7 +37,6 @@ export default function Home() {
     const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        setPrefsLoaded(true)
         return
       }
       setUserEmail(user.email ?? null)
@@ -40,45 +47,37 @@ export default function Home() {
         setDietaryPrefs(data.dietary_preferences || [])
       }
       const { data: saved } = await supabase.from('saved_places').select('place_id').eq('user_id', user.id)
-      if (saved) setSavedPlaceIds(new Set(saved.map((s: any) => s.place_id)))
-      setPrefsLoaded(true)
+      if (saved) setSavedPlaceIds(new Set((saved as SavedPlaceRow[]).map(s => s.place_id)))
       const pendingPlace = sessionStorage.getItem('pendingPlace')
       if (pendingPlace) {
         sessionStorage.removeItem('pendingPlace')
-        const place = JSON.parse(pendingPlace)
-        await supabase.from('saved_places').insert({
-          user_id: user.id,
-          place_id: place.id,
-          place_name: place.displayName?.text,
-          place_address: place.formattedAddress
-        })
-        setSavedPlaceIds(prev => new Set([...prev, place.id]))
-        alert(`${place.displayName?.text} saved!`)
+        const place = JSON.parse(pendingPlace) as PersonalCafePlace
+        if (place.id) {
+          await supabase.from('saved_places').insert({
+            user_id: user.id,
+            place_id: place.id,
+            place_name: place.displayName?.text,
+            place_address: place.formattedAddress
+          })
+          setSavedPlaceIds(prev => new Set([...prev, place.id as string]))
+          alert(`${place.displayName?.text} saved!`)
+        }
       }
       const pendingQuery = sessionStorage.getItem('pendingQuery')
       if (pendingQuery) {
         sessionStorage.removeItem('pendingQuery')
         setQuery(pendingQuery)
-        setReadyToSearch(true)
       }
     }
     loadUser()
   }, [])
 
-  useEffect(() => {
-    if (readyToSearch && prefsLoaded) {
-      search()
-      setReadyToSearch(false)
-    }
-  }, [readyToSearch, prefsLoaded])
-
-  useEffect(() => {
-    if (openNow) {
-      setResults(allResults.filter((p: any) => p.currentOpeningHours?.openNow))
-    } else {
-      setResults(allResults)
-    }
-  }, [openNow])
+  const trimmedQuery = query.trim()
+  const trimmedManualLocation = manualLocation.trim()
+  const hasSearchLocation = Boolean(trimmedManualLocation || currentLocation)
+  const canSearch = Boolean(trimmedQuery && hasSearchLocation && !loading)
+  const locationMode = trimmedManualLocation ? 'manual' : currentLocation ? 'browser' : null
+  const results = openNow ? allResults.filter(place => place.currentOpeningHours?.openNow) : allResults
 
   const getRadius = () => {
     if (travelMode === 'walking') return 3200
@@ -86,19 +85,56 @@ export default function Home() {
     return 16000
   }
 
-  const filterByPrice = (places: any[]) => {
+  const filterByPrice = (places: PersonalCafePlace[]) => {
     if (priceRange === 'any') return places
     const map: Record<string, string> = {
       '$': 'PRICE_LEVEL_INEXPENSIVE',
       '$$': 'PRICE_LEVEL_MODERATE',
       '$$$': 'PRICE_LEVEL_EXPENSIVE'
     }
-    return places.filter((p: any) => p.priceLevel === map[priceRange])
+    return places.filter(place => place.priceLevel === map[priceRange])
   }
 
   const buildQuery = () => {
     if (dietaryPrefs.length === 0) return query
     return `${query} ${dietaryPrefs.join(' ')}`
+  }
+
+  const buildPlacesUrl = () => {
+    const params = new URLSearchParams({ query: buildQuery() })
+
+    if (trimmedManualLocation) {
+      params.set('location', trimmedManualLocation)
+    } else if (currentLocation) {
+      params.set('lat', String(currentLocation.latitude))
+      params.set('lng', String(currentLocation.longitude))
+      params.set('radius', String(getRadius()))
+    }
+
+    return `/api/places?${params.toString()}`
+  }
+
+  const useCurrentLocation = () => {
+    setError('')
+
+    if (!navigator.geolocation) {
+      setError('Location is not available in this browser. Enter a city, neighborhood, or ZIP instead.')
+      return
+    }
+
+    setLoading(true)
+    navigator.geolocation.getCurrentPosition((position) => {
+      setCurrentLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      })
+      setLoading(false)
+      setError('')
+    }, () => {
+      setLoading(false)
+      setCurrentLocation(null)
+      setError('Could not get your location. Enter a city, neighborhood, or ZIP instead.')
+    })
   }
 
   const toggleMap = (placeId: string) => {
@@ -113,7 +149,10 @@ export default function Home() {
     })
   }
 
-  const toggleFavorite = async (place: any) => {
+  const toggleFavorite = async (place: PersonalCafePlace) => {
+    const placeId = place.id
+    if (!placeId) return
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       sessionStorage.setItem('pendingQuery', query)
@@ -121,21 +160,21 @@ export default function Home() {
       router.push('/login')
       return
     }
-    if (savedPlaceIds.has(place.id)) {
-      await supabase.from('saved_places').delete().eq('user_id', user.id).eq('place_id', place.id)
+    if (savedPlaceIds.has(placeId)) {
+      await supabase.from('saved_places').delete().eq('user_id', user.id).eq('place_id', placeId)
       setSavedPlaceIds(prev => {
         const next = new Set(prev)
-        next.delete(place.id)
+        next.delete(placeId)
         return next
       })
     } else {
       await supabase.from('saved_places').insert({
         user_id: user.id,
-        place_id: place.id,
+        place_id: placeId,
         place_name: place.displayName?.text,
         place_address: place.formattedAddress
       })
-      setSavedPlaceIds(prev => new Set([...prev, place.id]))
+      setSavedPlaceIds(prev => new Set([...prev, placeId]))
     }
   }
 
@@ -182,57 +221,81 @@ export default function Home() {
   }
 
   const pickForMe = async () => {
+    if (!trimmedQuery) {
+      setError('Search for a food or drink first.')
+      return
+    }
+
+    if (!hasSearchLocation) {
+      setError('Enter a city, neighborhood, or ZIP, or choose current location.')
+      return
+    }
+
     setLoading(true)
     setError('')
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      const res = await fetch(`/api/places?query=${encodeURIComponent(buildQuery())}&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
-      const data = await res.json()
+
+    try {
+      const res = await fetch(buildPlacesUrl())
+      const data = await res.json() as { places?: PersonalCafePlace[], error?: string }
       if (data.places && data.places.length > 0) {
+        const places = data.places
         const candidates = openNow
-          ? data.places.filter((p: any) => p.currentOpeningHours?.openNow)
-          : data.places
+          ? places.filter(place => place.currentOpeningHours?.openNow)
+          : places
         if (candidates.length === 0) {
           setError('No open places found nearby.')
-          setLoading(false)
           return
         }
         const random = candidates[Math.floor(Math.random() * candidates.length)]
-        logEvent('pick_for_me', { place_id: random.id, place_name: random.displayName?.text, open_now: openNow })
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`, '_blank')
+        const randomName = random.displayName?.text || 'selected place'
+        if (!random.id) {
+          setError('This place is missing a Google place ID. Try another result.')
+          return
+        }
+        logEvent('pick_for_me', { place_id: random.id, place_name: random.displayName?.text, open_now: openNow, location_mode: locationMode })
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(randomName)}&query_place_id=${random.id}`, '_blank')
       } else {
-        setError('No places found nearby.')
+        setError(data.error || 'No places found.')
       }
+    } catch {
+      setError('Could not find places. Try again in a moment.')
+    } finally {
       setLoading(false)
-    }, () => {
-      setError('Could not get your location.')
-      setLoading(false)
-    })
+    }
   }
 
   const search = async () => {
+    if (!trimmedQuery) {
+      setError('Search for a food or drink first.')
+      return
+    }
+
+    if (!hasSearchLocation) {
+      setError('Enter a city, neighborhood, or ZIP, or choose current location.')
+      return
+    }
+
     setLoading(true)
     setError('')
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      const res = await fetch(`/api/places?query=${encodeURIComponent(buildQuery())}&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
-      const data = await res.json()
+
+    try {
+      const res = await fetch(buildPlacesUrl())
+      const data = await res.json() as { places?: PersonalCafePlace[], error?: string }
       if (data.places) {
         const priceFiltered = filterByPrice(data.places)
         setRevealedMapIds(new Set())
         setAllResults(priceFiltered)
-        const filtered = openNow ? priceFiltered.filter((p: any) => p.currentOpeningHours?.openNow) : priceFiltered
-        setResults(filtered)
-        logEvent('search', { query, result_count: filtered.length, open_now: openNow, travel_mode: travelMode, price_range: priceRange })
+        const filtered = openNow ? priceFiltered.filter(place => place.currentOpeningHours?.openNow) : priceFiltered
+        logEvent('search', { query, result_count: filtered.length, open_now: openNow, travel_mode: travelMode, price_range: priceRange, location_mode: locationMode })
         if (filtered.length === 0) setError('No results matched your preferences. Try adjusting your price range or filters.')
       } else {
         setError(data.error || 'No results found')
       }
+    } catch {
+      setError('Could not find places. Try again in a moment.')
+    } finally {
       setLoading(false)
-    }, () => {
-      setError('Could not get your location. Please allow location access.')
-      setLoading(false)
-    })
+    }
   }
 
   return (
@@ -344,10 +407,47 @@ export default function Home() {
               boxSizing: 'border-box' as const,
             }}
           />
+          <input
+            type="text"
+            placeholder="city, neighborhood, or ZIP"
+            value={manualLocation}
+            onChange={e => setManualLocation(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            style={{
+              width: '100%',
+              padding: '0.85rem 1rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: 'none',
+              outline: 'none',
+              background: '#fdf6f0',
+              color: '#2c1a0e',
+              fontFamily: 'Georgia, serif',
+              boxSizing: 'border-box' as const,
+            }}
+          />
+          <button
+            type="button"
+            onClick={useCurrentLocation}
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.72rem 1rem',
+              fontSize: '0.92rem',
+              borderRadius: '8px',
+              border: '1px solid #d4a96a',
+              background: currentLocation && !trimmedManualLocation ? '#f7ead6' : 'transparent',
+              color: '#d4a96a',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontFamily: 'Georgia, serif',
+            }}
+          >
+            {currentLocation && !trimmedManualLocation ? 'Using current location' : 'Use current location'}
+          </button>
           <button
             id="search-btn"
             onClick={search}
-            disabled={loading || !query}
+            disabled={!canSearch}
             style={{
               width: '100%',
               padding: '0.85rem 1.25rem',
@@ -357,7 +457,7 @@ export default function Home() {
               background: '#d4a96a',
               color: '#2c1a0e',
               fontWeight: 'bold',
-              cursor: loading || !query ? 'not-allowed' : 'pointer',
+              cursor: canSearch ? 'pointer' : 'not-allowed',
               fontFamily: 'Georgia, serif',
             }}
           >
@@ -402,12 +502,15 @@ export default function Home() {
 
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {results.map((place) => {
+            const placeId = place.id
+            if (!placeId) return null
+
             const todayHours = getTodayHours(place)
             const mapEmbedUrl = getMapEmbedUrl(place)
-            const isMapRevealed = revealedMapIds.has(place.id)
+            const isMapRevealed = revealedMapIds.has(placeId)
 
             return (
-              <li key={place.id} style={{
+              <li key={placeId} style={{
                 background: '#fff',
                 borderRadius: '12px',
                 padding: '1rem',
@@ -427,7 +530,7 @@ export default function Home() {
                       flexShrink: 0,
                     }}
                   >
-                    {savedPlaceIds.has(place.id) ? '❤️' : '🤍'}
+                    {savedPlaceIds.has(placeId) ? '❤️' : '🤍'}
                   </button>
                 </div>
                 <p style={{ margin: '0.3rem 0 0', color: '#8a6a50', fontSize: '0.85rem' }}>{place.formattedAddress}</p>
@@ -441,7 +544,7 @@ export default function Home() {
                     style={{
                       border: '1px solid #d4a96a',
                       borderRadius: '8px',
-                      background: sharedPlaceIds.has(place.id) ? '#f7ead6' : 'transparent',
+                      background: sharedPlaceIds.has(placeId) ? '#f7ead6' : 'transparent',
                       color: '#5a3e2b',
                       cursor: 'pointer',
                       fontFamily: 'Georgia, serif',
@@ -449,12 +552,12 @@ export default function Home() {
                       padding: '0.12rem 0.45rem',
                     }}
                   >
-                    {sharedPlaceIds.has(place.id) ? 'Link Copied' : 'Share'}
+                    {sharedPlaceIds.has(placeId) ? 'Link Copied' : 'Share'}
                   </button>
                   {mapEmbedUrl && (
                     <button
                       type="button"
-                      onClick={() => toggleMap(place.id)}
+                      onClick={() => toggleMap(placeId)}
                       aria-expanded={isMapRevealed}
                       style={{
                         border: '1px solid #d4a96a',

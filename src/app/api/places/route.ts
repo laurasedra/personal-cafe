@@ -1,13 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+type PlacesApiData = {
+  places?: unknown[]
+  status?: string
+  error_message?: string
+}
+
+type NormalizedPlace = {
+  displayName: {
+    text: string
+  }
+  formattedAddress: string
+  location: {
+    latitude?: number
+    longitude?: number
+  }
+  currentOpeningHours: {
+    openNow: boolean
+    periods: unknown[]
+    weekdayDescriptions: unknown[]
+  }
+  priceLevel: unknown
+  rating: unknown
+  id?: string
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const query = searchParams.get('query')
+  const query = searchParams.get('query')?.trim()
   const lat = searchParams.get('lat')
   const lng = searchParams.get('lng')
+  const location = searchParams.get('location')?.trim().slice(0, 120)
+  const latitude = lat ? parseFloat(lat) : null
+  const longitude = lng ? parseFloat(lng) : null
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
+  const hasManualLocation = Boolean(location)
 
-  if (!query || !lat || !lng) {
-    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
+  if (!query || (!hasCoordinates && !hasManualLocation)) {
+    return NextResponse.json({ error: 'Enter a search and a city, neighborhood, or ZIP, or choose current location.' }, { status: 400 })
   }
 
   try {
@@ -21,17 +51,19 @@ export async function GET(request: NextRequest) {
     }
 
     const radius = parseFloat(searchParams.get('radius') || '8000')
-    const locationBias = {
-      circle: {
-        center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
-        radius
-      }
-    }
+    const locationBias = hasCoordinates
+      ? {
+          circle: {
+            center: { latitude: latitude as number, longitude: longitude as number },
+            radius
+          }
+        }
+      : undefined
 
     const requestBody = (text: string) => ({
       textQuery: text,
       maxResultCount: 20,
-      locationBias
+      ...(locationBias ? { locationBias } : {})
     })
 
     const commonHeaders = {
@@ -40,23 +72,26 @@ export async function GET(request: NextRequest) {
       'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.currentOpeningHours,places.priceLevel,places.rating,places.id'
     }
 
+    const itemTextQuery = hasManualLocation ? `${query} near ${location}` : query
+    const cafeTextQuery = hasManualLocation ? `cafe coffee shop near ${location}` : 'cafe coffee shop near me'
+
     const [itemRes, cafeRes] = await Promise.all([
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify(requestBody(query))
+        body: JSON.stringify(requestBody(itemTextQuery))
       }),
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify(requestBody('cafe coffee shop near me'))
+        body: JSON.stringify(requestBody(cafeTextQuery))
       })
     ])
 
-    const itemData = await itemRes.json().catch(() => null)
-    const cafeData = await cafeRes.json().catch(() => null)
+    const itemData = await itemRes.json().catch(() => null) as PlacesApiData | null
+    const cafeData = await cafeRes.json().catch(() => null) as PlacesApiData | null
 
-    const isPlacesStatusInvalid = (data: any) =>
+    const isPlacesStatusInvalid = (data: PlacesApiData | null) =>
       data && data.status && !['OK', 'ZERO_RESULTS'].includes(data.status)
 
     if (!itemRes.ok || !cafeRes.ok || isPlacesStatusInvalid(itemData) || isPlacesStatusInvalid(cafeData)) {
@@ -79,47 +114,64 @@ export async function GET(request: NextRequest) {
     const itemResults = Array.isArray(itemData?.places) ? itemData.places : []
     const cafeResults = Array.isArray(cafeData?.places) ? cafeData.places : []
 
-    const normalize = (place: any) => ({
-      displayName: place.displayName ?? { text: '' },
-      formattedAddress: place.formattedAddress ?? '',
-      location: {
-        latitude: place.location?.latitude,
-        longitude: place.location?.longitude
-      },
-      currentOpeningHours: {
-        openNow: place.currentOpeningHours?.openNow ?? false,
-        periods: place.currentOpeningHours?.periods ?? [],
-        weekdayDescriptions: place.currentOpeningHours?.weekdayDescriptions ?? []
-      },
-      priceLevel: place.priceLevel ?? null,
-      rating: place.rating ?? null,
-      id: place.id
-    })
-
     const allPlaces = [...itemResults, ...cafeResults].map(normalize)
-    const seen = new Set()
-    const places = allPlaces.filter((place: any) => {
+    const seen = new Set<string | undefined>()
+    const places = allPlaces.filter((place) => {
       if (seen.has(place.id)) return false
       seen.add(place.id)
       return true
     })
 
-    const placesWithDistance = places.map((place: any) => {
+    if (!hasCoordinates) {
+      return NextResponse.json({ places })
+    }
+
+    const placesWithDistance = places.map((place) => {
       const placeLat = place.location?.latitude
       const placeLng = place.location?.longitude
-      const distance = haversine(parseFloat(lat), parseFloat(lng), placeLat, placeLng)
+      const distance = Number.isFinite(placeLat) && Number.isFinite(placeLng)
+        ? haversine(latitude as number, longitude as number, placeLat as number, placeLng as number)
+        : Number.POSITIVE_INFINITY
       return { ...place, distance }
     })
 
-    placesWithDistance.sort((a: any, b: any) => a.distance - b.distance)
+    placesWithDistance.sort((a, b) => a.distance - b.distance)
 
     return NextResponse.json({ places: placesWithDistance })
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: 'Internal server error', message: error?.message || String(error) },
+      { error: 'Internal server error', message: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
+}
+
+function normalize(value: unknown): NormalizedPlace {
+  const place = asRecord(value)
+  const displayName = asRecord(place.displayName)
+  const location = asRecord(place.location)
+  const currentOpeningHours = asRecord(place.currentOpeningHours)
+
+  return {
+    displayName: { text: typeof displayName.text === 'string' ? displayName.text : '' },
+    formattedAddress: typeof place.formattedAddress === 'string' ? place.formattedAddress : '',
+    location: {
+      latitude: typeof location.latitude === 'number' ? location.latitude : undefined,
+      longitude: typeof location.longitude === 'number' ? location.longitude : undefined
+    },
+    currentOpeningHours: {
+      openNow: typeof currentOpeningHours.openNow === 'boolean' ? currentOpeningHours.openNow : false,
+      periods: Array.isArray(currentOpeningHours.periods) ? currentOpeningHours.periods : [],
+      weekdayDescriptions: Array.isArray(currentOpeningHours.weekdayDescriptions) ? currentOpeningHours.weekdayDescriptions : []
+    },
+    priceLevel: place.priceLevel ?? null,
+    rating: place.rating ?? null,
+    id: typeof place.id === 'string' ? place.id : undefined
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
