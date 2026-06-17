@@ -25,6 +25,15 @@ type PlaceWithMap = {
   }
 }
 
+type BrowserLocation = {
+  latitude: number
+  longitude: number
+}
+
+type SearchLocation =
+  | { mode: 'manual'; location: string }
+  | { mode: 'browser'; coords: BrowserLocation }
+
 function getTodayHours(place: PlaceWithHours) {
   const descriptions = place.currentOpeningHours?.weekdayDescriptions
   if (!Array.isArray(descriptions) || descriptions.length === 0) return null
@@ -51,6 +60,8 @@ function getMapEmbedUrl(place: PlaceWithMap) {
 
 export default function Home() {
   const [query, setQuery] = useState('')
+  const [manualLocation, setManualLocation] = useState('')
+  const [currentLocation, setCurrentLocation] = useState<BrowserLocation | null>(null)
   const [results, setResults] = useState<any[]>([])
   const [allResults, setAllResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -142,6 +153,27 @@ export default function Home() {
     return `${query} ${dietaryPrefs.join(' ')}`
   }
 
+  const getSearchLocation = (): SearchLocation | null => {
+    const trimmedLocation = manualLocation.trim()
+    if (trimmedLocation) return { mode: 'manual', location: trimmedLocation }
+    if (currentLocation) return { mode: 'browser', coords: currentLocation }
+    return null
+  }
+
+  const buildPlacesUrl = (searchQuery: string, searchLocation: SearchLocation) => {
+    const params = new URLSearchParams({ query: searchQuery })
+
+    if (searchLocation.mode === 'manual') {
+      params.set('location', searchLocation.location)
+    } else {
+      params.set('lat', String(searchLocation.coords.latitude))
+      params.set('lng', String(searchLocation.coords.longitude))
+      params.set('radius', String(getRadius()))
+    }
+
+    return `/api/places?${params.toString()}`
+  }
+
   const toggleMap = (placeId: string) => {
     setRevealedMapIds(prev => {
       const next = new Set(prev)
@@ -180,59 +212,124 @@ export default function Home() {
     }
   }
 
-  const pickForMe = async () => {
+  const executeSearch = async (searchLocation: SearchLocation) => {
     setLoading(true)
     setError('')
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      const res = await fetch(`/api/places?query=cafe coffee shop bakery&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
-      const data = await res.json()
-      if (data.places && data.places.length > 0) {
-        const candidates = openNow
-          ? data.places.filter((p: any) => p.currentOpeningHours?.openNow)
-          : data.places
-        if (candidates.length === 0) {
-          setError('No open places found nearby.')
-          setLoading(false)
-          return
-        }
-        const random = candidates[Math.floor(Math.random() * candidates.length)]
-        logEvent('pick_for_me', { place_id: random.id, place_name: random.displayName?.text, open_now: openNow })
-        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`, '_blank')
-      } else {
-        setError('No places found nearby.')
-      }
-      setLoading(false)
-    }, () => {
-      setError('Could not get your location.')
-      setLoading(false)
-    })
-  }
 
-  const search = async () => {
-    setLoading(true)
-    setError('')
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      const res = await fetch(`/api/places?query=${encodeURIComponent(buildQuery())}&lat=${latitude}&lng=${longitude}&radius=${getRadius()}`)
+    try {
+      const res = await fetch(buildPlacesUrl(buildQuery(), searchLocation))
       const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'No results found')
+        return
+      }
+
       if (data.places) {
         const priceFiltered = filterByPrice(data.places)
         setRevealedMapIds(new Set())
         setAllResults(priceFiltered)
         const filtered = openNow ? priceFiltered.filter((p: any) => p.currentOpeningHours?.openNow) : priceFiltered
         setResults(filtered)
-        logEvent('search', { query, result_count: filtered.length, open_now: openNow, travel_mode: travelMode, price_range: priceRange })
+        logEvent('search', {
+          query,
+          result_count: filtered.length,
+          open_now: openNow,
+          travel_mode: travelMode,
+          price_range: priceRange,
+          location_mode: searchLocation.mode
+        })
         if (filtered.length === 0) setError('No results matched your preferences. Try adjusting your price range or filters.')
       } else {
         setError('No results found')
       }
+    } catch {
+      setError('Search failed. Try again in a moment.')
+    } finally {
       setLoading(false)
+    }
+  }
+
+  const pickForMe = async () => {
+    const searchLocation = getSearchLocation()
+    if (!searchLocation) {
+      setError('Enter a city, neighborhood, or ZIP, or choose current location.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch(buildPlacesUrl('cafe coffee shop bakery', searchLocation))
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'No places found nearby.')
+        return
+      }
+
+      if (data.places && data.places.length > 0) {
+        const candidates = openNow
+          ? data.places.filter((p: any) => p.currentOpeningHours?.openNow)
+          : data.places
+        if (candidates.length === 0) {
+          setError('No open places found nearby.')
+          return
+        }
+        const random = candidates[Math.floor(Math.random() * candidates.length)]
+        logEvent('pick_for_me', {
+          place_id: random.id,
+          place_name: random.displayName?.text,
+          open_now: openNow,
+          location_mode: searchLocation.mode
+        })
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(random.displayName?.text)}&query_place_id=${random.id}`, '_blank')
+      } else {
+        setError('No places found nearby.')
+      }
+    } catch {
+      setError('Could not pick a place. Try again in a moment.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const search = async () => {
+    const searchLocation = getSearchLocation()
+    if (!searchLocation) {
+      setError('Enter a city, neighborhood, or ZIP, or choose current location.')
+      return
+    }
+
+    await executeSearch(searchLocation)
+  }
+
+  const useCurrentLocation = () => {
+    setLoading(true)
+    setError('')
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      }
+      const searchLocation: SearchLocation = { mode: 'browser', coords }
+      setCurrentLocation(coords)
+
+      if (query.trim()) {
+        await executeSearch(searchLocation)
+      } else {
+        setError('Current location is ready. Enter what you want to find.')
+        setLoading(false)
+      }
     }, () => {
-      setError('Could not get your location. Please allow location access.')
+      setError('Could not get your location. You can still search by city, neighborhood, or ZIP.')
       setLoading(false)
     })
   }
+
+  const canSearch = Boolean(query.trim() && (manualLocation.trim() || currentLocation))
 
   return (
     <main style={{
@@ -324,9 +421,9 @@ export default function Home() {
           maxWidth: '560px',
           margin: '0 auto',
         }}>
-          <input
-            type="text"
-            placeholder="iced latte, matcha, chai..."
+	          <input
+	            type="text"
+	            placeholder="iced latte, matcha, chai..."
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
@@ -340,26 +437,65 @@ export default function Home() {
               background: '#fdf6f0',
               color: '#2c1a0e',
               fontFamily: 'Georgia, serif',
-              boxSizing: 'border-box' as const,
-            }}
-          />
-          <button
-            id="search-btn"
-            onClick={search}
-            disabled={loading || !query}
-            style={{
-              width: '100%',
-              padding: '0.85rem 1.25rem',
+	              boxSizing: 'border-box' as const,
+	            }}
+	          />
+	          <input
+	            type="text"
+	            placeholder="city, neighborhood, or ZIP"
+	            value={manualLocation}
+	            onChange={e => setManualLocation(e.target.value)}
+	            onKeyDown={e => e.key === 'Enter' && search()}
+	            aria-label="Search location"
+	            style={{
+	              width: '100%',
+	              padding: '0.85rem 1rem',
+	              fontSize: '1rem',
+	              borderRadius: '8px',
+	              border: '1px solid #d4a96a',
+	              outline: 'none',
+	              background: '#fdf6f0',
+	              color: '#2c1a0e',
+	              fontFamily: 'Georgia, serif',
+	              boxSizing: 'border-box' as const,
+	            }}
+	          />
+	          <button
+	            type="button"
+	            onClick={useCurrentLocation}
+	            disabled={loading}
+	            style={{
+	              width: '100%',
+	              padding: '0.72rem 1.25rem',
+	              fontSize: '0.95rem',
+	              borderRadius: '8px',
+	              border: '1px solid #d4a96a',
+	              background: 'transparent',
+	              color: '#d4a96a',
+	              fontWeight: 'bold',
+	              cursor: loading ? 'not-allowed' : 'pointer',
+	              fontFamily: 'Georgia, serif',
+	            }}
+	          >
+	            Use current location
+	          </button>
+	          <button
+	            id="search-btn"
+	            onClick={search}
+	            disabled={loading || !canSearch}
+	            style={{
+	              width: '100%',
+	              padding: '0.85rem 1.25rem',
               fontSize: '1rem',
               borderRadius: '8px',
               border: 'none',
-              background: '#d4a96a',
-              color: '#2c1a0e',
-              fontWeight: 'bold',
-              cursor: loading || !query ? 'not-allowed' : 'pointer',
-              fontFamily: 'Georgia, serif',
-            }}
-          >
+	              background: '#d4a96a',
+	              color: '#2c1a0e',
+	              fontWeight: 'bold',
+	              cursor: loading || !canSearch ? 'not-allowed' : 'pointer',
+	              fontFamily: 'Georgia, serif',
+	            }}
+	          >
             {loading ? 'Searching...' : 'Find it'}
           </button>
         </div>

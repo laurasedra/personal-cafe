@@ -5,8 +5,11 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get('query')
   const lat = searchParams.get('lat')
   const lng = searchParams.get('lng')
+  const location = searchParams.get('location')?.trim().slice(0, 120)
+  const hasBrowserLocation = Boolean(lat && lng)
+  const hasManualLocation = Boolean(location)
 
-  if (!query || !lat || !lng) {
+  if (!query || (!hasBrowserLocation && !hasManualLocation)) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 })
   }
 
@@ -21,17 +24,28 @@ export async function GET(request: NextRequest) {
     }
 
     const radius = parseFloat(searchParams.get('radius') || '8000')
-    const locationBias = {
+    const browserLatitude = lat ? parseFloat(lat) : null
+    const browserLongitude = lng ? parseFloat(lng) : null
+    const hasValidBrowserLocation =
+      hasBrowserLocation &&
+      Number.isFinite(browserLatitude) &&
+      Number.isFinite(browserLongitude)
+
+    if (hasBrowserLocation && !hasValidBrowserLocation) {
+      return NextResponse.json({ error: 'Invalid location parameters' }, { status: 400 })
+    }
+
+    const locationBias = hasValidBrowserLocation ? {
       circle: {
-        center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
+        center: { latitude: browserLatitude, longitude: browserLongitude },
         radius
       }
-    }
+    } : undefined
 
     const requestBody = (text: string) => ({
       textQuery: text,
       maxResultCount: 20,
-      locationBias
+      ...(locationBias ? { locationBias } : {})
     })
 
     const commonHeaders = {
@@ -40,16 +54,19 @@ export async function GET(request: NextRequest) {
       'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.currentOpeningHours,places.priceLevel,places.rating,places.id'
     }
 
+    const itemQuery = hasManualLocation ? `${query} near ${location}` : query
+    const cafeQuery = hasManualLocation ? `cafe coffee shop near ${location}` : 'cafe coffee shop near me'
+
     const [itemRes, cafeRes] = await Promise.all([
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify(requestBody(query))
+        body: JSON.stringify(requestBody(itemQuery))
       }),
       fetch('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: commonHeaders,
-        body: JSON.stringify(requestBody('cafe coffee shop near me'))
+        body: JSON.stringify(requestBody(cafeQuery))
       })
     ])
 
@@ -104,10 +121,14 @@ export async function GET(request: NextRequest) {
       return true
     })
 
+    if (!hasValidBrowserLocation || browserLatitude === null || browserLongitude === null) {
+      return NextResponse.json({ places })
+    }
+
     const placesWithDistance = places.map((place: any) => {
       const placeLat = place.location?.latitude
       const placeLng = place.location?.longitude
-      const distance = haversine(parseFloat(lat), parseFloat(lng), placeLat, placeLng)
+      const distance = haversine(browserLatitude, browserLongitude, placeLat, placeLng)
       return { ...place, distance }
     })
 
