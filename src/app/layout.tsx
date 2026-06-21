@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { UmamiAnalytics } from '@/components/UmamiAnalytics';
+import { UmamiAnalytics } from '@/app/components/UmamiAnalytics';
 
 
 const geistSans = Geist({
