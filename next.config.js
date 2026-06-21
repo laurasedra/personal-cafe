@@ -36,7 +36,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cloud.umami.is; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://*.supabase.co https://places.googleapis.com https://maps.googleapis.com https://cloud.umami.is; frame-src https://www.google.com https://maps.google.com;",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cloud.umami.is; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://*.supabase.co https://places.googleapis.com https://maps.googleapis.com https://cloud.umami.is https://gateway.umami.is; frame-src https://www.google.com https://maps.google.com;",
           },
         ],
       },
