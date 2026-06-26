@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import Header from '@/app/components/Header'
 import Footer from '@/app/components/Footer'
 import { logEvent } from '@/app/lib/analytics'
@@ -75,6 +76,20 @@ export default function Login() {
               onKeyDown={e => e.key === 'Enter' && handleAuth()}
               style={inputStyle}
             />
+            {!isSignUp && (
+              <Link
+                href="/forgot-password"
+                style={{
+                  alignSelf: 'flex-end',
+                  fontSize: '0.85rem',
+                  color: '#d4a96a',
+                  fontWeight: 'bold',
+                  textDecoration: 'none',
+                }}
+              >
+                Forgot password?
+              </Link>
+            )}
 
             {error && (
               <p style={{ color: '#9b3a2a', background: '#fde8e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', margin: 0 }}>
