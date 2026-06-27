@@ -42,9 +42,20 @@ Create a `.env.local` file:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 NEXT_PUBLIC_GOOGLE_PLACES_API_KEY=your_google_places_api_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 ### 3. Set up Supabase
+
+Under **Authentication → URL Configuration**:
+
+- Set **Site URL** to `https://personalcafe.netlify.app`.
+- Add `https://personalcafe.netlify.app/reset-password` to **Redirect URLs**.
+- Add `http://localhost:3000/reset-password` only when local reset testing is needed.
+
+Set `NEXT_PUBLIC_SITE_URL=https://personalcafe.netlify.app` in the Netlify production
+environment. Supabase rejects recovery redirects that are not on its allowlist and
+otherwise falls back to the Site URL.
 
 You need two tables:
 

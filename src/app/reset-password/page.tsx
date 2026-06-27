@@ -7,6 +7,38 @@ import Header from '@/app/components/Header'
 import Footer from '@/app/components/Footer'
 import { supabase } from '@/app/lib/supabase'
 
+const RECOVERY_STORAGE_KEY = 'personal-cafe-password-recovery'
+
+type RecoveryMarker = {
+  userId: string
+  expiresAt: number
+}
+
+function saveRecoveryMarker(userId: string, expiresAt?: number) {
+  const marker: RecoveryMarker = {
+    userId,
+    expiresAt: expiresAt ?? Math.floor(Date.now() / 1000) + 60 * 60,
+  }
+
+  window.sessionStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(marker))
+}
+
+function hasValidRecoveryMarker(userId: string) {
+  const storedMarker = window.sessionStorage.getItem(RECOVERY_STORAGE_KEY)
+  if (!storedMarker) return false
+
+  try {
+    const marker = JSON.parse(storedMarker) as RecoveryMarker
+    return marker.userId === userId && marker.expiresAt > Math.floor(Date.now() / 1000)
+  } catch {
+    return false
+  }
+}
+
+function clearRecoveryMarker() {
+  window.sessionStorage.removeItem(RECOVERY_STORAGE_KEY)
+}
+
 export default function ResetPassword() {
   const [checking, setChecking] = useState(true)
   const [hasRecoverySession, setHasRecoverySession] = useState(false)
@@ -22,21 +54,24 @@ export default function ResetPassword() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' && session) {
-        window.sessionStorage.setItem('personal-cafe-password-recovery', 'true')
+        saveRecoveryMarker(session.user.id, session.expires_at)
         setHasRecoverySession(true)
         setChecking(false)
         setError('')
+      } else if (event === 'SIGNED_OUT') {
+        clearRecoveryMarker()
+        setHasRecoverySession(false)
       }
     })
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isMounted) return
 
-      const hasRecoverySession = window.sessionStorage.getItem('personal-cafe-password-recovery') === 'true'
-      if (session && hasRecoverySession) {
+      if (session && hasValidRecoveryMarker(session.user.id)) {
         setHasRecoverySession(true)
         setError('')
       } else {
+        clearRecoveryMarker()
         setError('This password reset link is invalid or expired. Request a new link.')
       }
 
@@ -51,6 +86,8 @@ export default function ResetPassword() {
 
   const handlePasswordUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (loading || !hasRecoverySession) return
+
     setError('')
     setSuccess('')
 
@@ -66,16 +103,21 @@ export default function ResetPassword() {
 
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
-    setLoading(false)
 
     if (error) {
-      setError(error.message)
+      setLoading(false)
+      setError('We could not update your password. Request a new reset link and try again.')
       return
     }
 
+    clearRecoveryMarker()
+    setHasRecoverySession(false)
+    setPassword('')
+    setConfirmPassword('')
+    await supabase.auth.signOut({ scope: 'local' })
+    setLoading(false)
     setSuccess('Your password has been updated. Redirecting to log in...')
-    window.sessionStorage.removeItem('personal-cafe-password-recovery')
-    setTimeout(() => router.push('/login'), 1500)
+    window.setTimeout(() => router.replace('/login'), 1500)
   }
 
   const inputStyle = {
@@ -115,7 +157,13 @@ export default function ResetPassword() {
             </p>
           )}
 
-          {!checking && hasRecoverySession && (
+          {!checking && success && (
+            <p style={{ color: '#365b2c', background: '#e8f5e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', margin: 0 }}>
+              {success}
+            </p>
+          )}
+
+          {!checking && !success && hasRecoverySession && (
             <form onSubmit={handlePasswordUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <input
                 type="password"
@@ -123,6 +171,8 @@ export default function ResetPassword() {
                 value={password}
                 onChange={event => setPassword(event.target.value)}
                 autoComplete="new-password"
+                minLength={8}
+                required
                 style={inputStyle}
               />
               <input
@@ -131,18 +181,14 @@ export default function ResetPassword() {
                 value={confirmPassword}
                 onChange={event => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
+                minLength={8}
+                required
                 style={inputStyle}
               />
 
               {error && (
                 <p style={{ color: '#9b3a2a', background: '#fde8e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', margin: 0 }}>
                   {error}
-                </p>
-              )}
-
-              {success && (
-                <p style={{ color: '#365b2c', background: '#e8f5e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', margin: 0 }}>
-                  {success}
                 </p>
               )}
 
@@ -167,7 +213,7 @@ export default function ResetPassword() {
             </form>
           )}
 
-          {!checking && !hasRecoverySession && (
+          {!checking && !success && !hasRecoverySession && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {error && (
                 <p style={{ color: '#9b3a2a', background: '#fde8e4', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', margin: 0 }}>

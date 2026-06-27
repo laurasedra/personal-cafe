@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Header from '@/app/components/Header'
 import Footer from '@/app/components/Footer'
 import { supabase } from '@/app/lib/supabase'
+import { getPasswordResetRedirectUrl } from '@/app/lib/site-url'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -14,6 +15,8 @@ export default function ForgotPassword() {
 
   const handleResetRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (loading) return
+
     setError('')
     setSent(false)
 
@@ -24,12 +27,12 @@ export default function ForgotPassword() {
     }
 
     setLoading(true)
-    const redirectTo = `${window.location.origin}/reset-password`
+    const redirectTo = getPasswordResetRedirectUrl()
     const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, { redirectTo })
     setLoading(false)
 
     if (error) {
-      setError(error.message)
+      setError('We could not send a reset link. Wait a moment and try again.')
       return
     }
 
@@ -74,6 +77,7 @@ export default function ForgotPassword() {
               value={email}
               onChange={event => setEmail(event.target.value)}
               autoComplete="email"
+              required
               style={inputStyle}
             />
 
